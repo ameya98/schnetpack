@@ -188,31 +188,30 @@ class E3SchNetInteraction(nn.Module):
         Returns:
             atom features after interaction
         """
-        print("x before in2f: ", x.shape)
+        print("x before in2f: ", x.shape, x.device)
         # Embed the inputs.
         x = self.in2f(x)
-        print("x after in2f: ", x.shape)
+        print("x after in2f: ", x.shape, x.device)
 
         # Previously x_j.shape == (num_edges, n_filters * x_irreps.dim)
         # We want x_j.shape == (num_edges, n_filters, x_irreps.dim)
         x_j = x[idx_j]
-        print("x_j: ", x_j.shape)
+        print("x_j: ", x_j.shape, x_j.device)
         x_j = mul_to_axis(x_j, self.irreps_after_in2f, self.n_filters)
-        print("x_j after mul_to_axis: ", x_j.shape)
+        print("x_j after mul_to_axis: ", x_j.shape, x_j.device)
 
         # Compute the spherical harmonics of relative positions.
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
-        print("r_ij: ", r_ij.shape)
+        print("r_ij: ", r_ij.shape, r_ij.device)
         Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalize=True)
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
-        print("Yr_ij: ", Yr_ij.shape)
-        Yr_ij = Yr_ij.to(x_j.device)
+        print("Yr_ij: ", Yr_ij.shape, Yr_ij.device)
 
         # Apply e3nn.o3.FullTensorProduct to get new x_j of shape (num_edges, n_filters, new_x_irreps).
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
-        print("x_j after TP with Yr_ij: ", x_j.shape)
+        print("x_j after TP with Yr_ij: ", x_j.shape, x_j.device)
 
         # Reshape x_j back to (num_edges, n_filters * x_irreps.dim).
         x_j = axis_to_mul(x_j, self.irreps_after_tensor_product_x_Yr)
