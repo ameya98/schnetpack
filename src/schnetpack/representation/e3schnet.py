@@ -208,6 +208,8 @@ class E3SchNetInteraction(nn.Module):
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
         print("Yr_ij: ", Yr_ij.shape)
+        Yr_ij = Yr_ij.to(x_j.device)
+
         # Apply e3nn.o3.FullTensorProduct to get new x_j of shape (num_edges, n_filters, new_x_irreps).
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
         print("x_j after TP with Yr_ij: ", x_j.shape)
