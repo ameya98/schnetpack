@@ -317,6 +317,10 @@ class E3SchNet(nn.Module):
         rcut_ij = self.cutoff_fn(d_ij)
         r_ij = r_ij * rcut_ij[:, None]
 
+        num_nodes = x.shape[0]
+        num_edges = r_ij.shape[0]
+        assert r_ij.shape == (num_edges, 3), r_ij.shape
+
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
             v = interaction(x, idx_i, idx_j, f_ij, rcut_ij, r_ij)
