@@ -12,28 +12,42 @@ import schnetpack.nn as snn
 __all__ = ["E3SchNet", "E3SchNetInteraction"]
 
 
-
-def irreps_mul_to_axis(input_irreps: e3nn.o3.Irreps, num_channels: int) -> e3nn.o3.Irreps:
+def irreps_mul_to_axis(
+    input_irreps: e3nn.o3.Irreps, num_channels: int
+) -> e3nn.o3.Irreps:
     """Returns the corresponding irreps for the output of mul_to_axis()."""
-    return e3nn.o3.Irreps([(mul // num_channels, (ir.l, ir.p)) for mul, ir in input_irreps])
+    return e3nn.o3.Irreps(
+        [(mul // num_channels, (ir.l, ir.p)) for mul, ir in input_irreps]
+    )
 
 
-def irreps_axis_to_mul(input_irreps: e3nn.o3.Irreps, num_channels: int) -> e3nn.o3.Irreps:
+def irreps_axis_to_mul(
+    input_irreps: e3nn.o3.Irreps, num_channels: int
+) -> e3nn.o3.Irreps:
     """Returns the corresponding irreps for the output of axis_to_mul()."""
-    return e3nn.o3.Irreps([(mul * num_channels, (ir.l, ir.p)) for mul, ir in input_irreps])
+    return e3nn.o3.Irreps(
+        [(mul * num_channels, (ir.l, ir.p)) for mul, ir in input_irreps]
+    )
 
 
-def mul_to_axis(input: torch.Tensor, input_irreps: e3nn.o3.Irreps, num_channels: int) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
+def mul_to_axis(
+    input: torch.Tensor, input_irreps: e3nn.o3.Irreps, num_channels: int
+) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
     """Reshapes a tensor of shape (num_atoms, num_channels * irreps.dim) to (num_atoms, num_channels, irreps.dim)."""
 
-    assert input.shape[-1] == input_irreps.dim, f"Expected {input_irreps.dim} features, got {input.shape[1]}"
+    assert (
+        input.shape[-1] == input_irreps.dim
+    ), f"Expected {input_irreps.dim} features, got {input.shape[1]}"
     assert all(mul % num_channels == 0 for mul, _ in input_irreps)
 
     def get_slices_for_channel(channel):
         """Returns a slice for each irrep in input_irreps for the given channel."""
         for irrep_slice in input_irreps.slices():
             irrep_dim = (irrep_slice.stop - irrep_slice.start) // num_channels
-            yield slice(irrep_slice.start + channel * irrep_dim, irrep_slice.start + (channel + 1) * irrep_dim)
+            yield slice(
+                irrep_slice.start + channel * irrep_dim,
+                irrep_slice.start + (channel + 1) * irrep_dim,
+            )
 
     num_atoms = input.shape[0]
     output_irreps = irreps_mul_to_axis(input_irreps, num_channels)
@@ -41,21 +55,30 @@ def mul_to_axis(input: torch.Tensor, input_irreps: e3nn.o3.Irreps, num_channels:
     for channel in range(num_channels):
         start = 0
         for irrep_slice in get_slices_for_channel(channel):
-            output[:, channel, start: start + irrep_slice.stop - irrep_slice.start] = input[:, irrep_slice]
+            output[
+                :, channel, start : start + irrep_slice.stop - irrep_slice.start
+            ] = input[:, irrep_slice]
             start += irrep_slice.stop - irrep_slice.start
     return output
 
 
-def axis_to_mul(input: torch.Tensor, input_irreps: e3nn.o3.Irreps) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
+def axis_to_mul(
+    input: torch.Tensor, input_irreps: e3nn.o3.Irreps
+) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
     """Reshapes a tensor of shape (num_atoms, num_channels, irreps.dim) to (num_atoms, num_channels * irreps.dim)."""
 
-    assert input.shape[-1] == input_irreps.dim, f"Expected {input_irreps.dim} features, got {input.shape[1]}"
-    
+    assert (
+        input.shape[-1] == input_irreps.dim
+    ), f"Expected {input_irreps.dim} features, got {input.shape[1]}"
+
     def get_slices_for_channel(channel):
         """Returns a slice for each irrep in input_irreps for the given channel."""
         for irrep_slice in output_irreps.slices():
             irrep_dim = (irrep_slice.stop - irrep_slice.start) // num_channels
-            yield slice(irrep_slice.start + channel * irrep_dim, irrep_slice.start + (channel + 1) * irrep_dim)
+            yield slice(
+                irrep_slice.start + channel * irrep_dim,
+                irrep_slice.start + (channel + 1) * irrep_dim,
+            )
 
     num_atoms, num_channels = input.shape[0], input.shape[1]
     output_irreps = irreps_axis_to_mul(input_irreps, num_channels)
@@ -63,7 +86,9 @@ def axis_to_mul(input: torch.Tensor, input_irreps: e3nn.o3.Irreps) -> Tuple[torc
     for channel in range(num_channels):
         start = 0
         for irrep_slice in get_slices_for_channel(channel):
-            output[:, irrep_slice] = input[:, channel, start: start + irrep_slice.stop - irrep_slice.start]
+            output[:, irrep_slice] = input[
+                :, channel, start : start + irrep_slice.stop - irrep_slice.start
+            ]
             start += irrep_slice.stop - irrep_slice.start
     return output
 
@@ -91,34 +116,56 @@ class E3SchNetInteraction(nn.Module):
         self.n_filters = n_filters
         self.max_ell = max_ell
 
-        input_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
+        input_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(
+            self.max_ell
+        )
         input_irreps = input_irreps.sort().irreps.simplify()
 
-        irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
+        irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
+            self.max_ell
+        )
         self.irreps_after_in2f = irreps_after_in2f.sort().irreps.simplify()
-        self.in2f = e3nn.o3.Linear(irreps_in=input_irreps, irreps_out=self.irreps_after_in2f)
+        self.in2f = e3nn.o3.Linear(
+            irreps_in=input_irreps, irreps_out=self.irreps_after_in2f
+        )
 
-        self.irreps_after_mul_to_axis = irreps_mul_to_axis(self.irreps_after_in2f, self.n_filters)
+        self.irreps_after_mul_to_axis = irreps_mul_to_axis(
+            self.irreps_after_in2f, self.n_filters
+        )
 
         self.Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
-        self.tensor_product_x_Yr = e3nn.o3.FullTensorProduct(self.irreps_after_mul_to_axis, self.Yr_irreps)
+        self.tensor_product_x_Yr = e3nn.o3.FullTensorProduct(
+            self.irreps_after_mul_to_axis, self.Yr_irreps
+        )
         self.irreps_after_tensor_product_x_Yr = self.tensor_product_x_Yr.irreps_out
-    
-        self.irreps_after_axis_to_mul = irreps_axis_to_mul(self.irreps_after_tensor_product_x_Yr, self.n_filters)
-        
+
+        self.irreps_after_axis_to_mul = irreps_axis_to_mul(
+            self.irreps_after_tensor_product_x_Yr, self.n_filters
+        )
+
         self.W_irreps = e3nn.o3.Irreps(f"{self.irreps_after_axis_to_mul.num_irreps}x0e")
         self.filter_network = nn.Sequential(
-            Dense(n_rbf, n_filters, activation=activation), Dense(n_filters, self.W_irreps.dim)
-        )   
+            Dense(n_rbf, n_filters, activation=activation),
+            Dense(n_filters, self.W_irreps.dim),
+        )
 
-        self.continuous_filter_convolution = e3nn.o3.ElementwiseTensorProduct(self.irreps_after_axis_to_mul, self.W_irreps)
-        self.irreps_after_continuous_filter_convolution = self.continuous_filter_convolution.irreps_out
-        
+        self.continuous_filter_convolution = e3nn.o3.ElementwiseTensorProduct(
+            self.irreps_after_axis_to_mul, self.W_irreps
+        )
+        self.irreps_after_continuous_filter_convolution = (
+            self.continuous_filter_convolution.irreps_out
+        )
+
         output_irreps = input_irreps
-        self.f2out_1 = e3nn.o3.Linear(irreps_in=self.irreps_after_continuous_filter_convolution, irreps_out=output_irreps)
-        self.f2out_act = e3nn.nn.Activation(irreps_in=output_irreps, acts=[activation if ir.l == 0 else None for _, ir in output_irreps])
+        self.f2out_1 = e3nn.o3.Linear(
+            irreps_in=self.irreps_after_continuous_filter_convolution,
+            irreps_out=output_irreps,
+        )
+        self.f2out_act = e3nn.nn.Activation(
+            irreps_in=output_irreps,
+            acts=[activation if ir.l == 0 else None for _, ir in output_irreps],
+        )
         self.f2out_2 = e3nn.o3.Linear(irreps_in=output_irreps, irreps_out=output_irreps)
-
 
     def forward(
         self,
@@ -159,7 +206,7 @@ class E3SchNetInteraction(nn.Module):
 
         # Again, reshape x back to (num_edges, n_filters * x_irreps.dim).
         x = axis_to_mul(x, self.irreps_after_tensor_product_x_Yr)
-    
+
         # Compute filter.
         Wij = self.filter_network(f_ij)
         Wij = Wij * rcut_ij[:, None]
@@ -230,13 +277,17 @@ class E3SchNet(nn.Module):
         self.cutoff = cutoff_fn.cutoff
         self.max_ell = max_ell
 
-        latent_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
+        latent_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(
+            self.max_ell
+        )
         latent_irreps = latent_irreps.sort().irreps.simplify()
         self.latent_irreps = latent_irreps
 
         # layers
         self.embedding = nn.Embedding(max_z, self.n_atom_basis, padding_idx=0)
-        self.post_embedding = e3nn.o3.Linear(irreps_in=f"{self.n_atom_basis}x0e", irreps_out=self.latent_irreps)
+        self.post_embedding = e3nn.o3.Linear(
+            irreps_in=f"{self.n_atom_basis}x0e", irreps_out=self.latent_irreps
+        )
         self.interactions = snn.replicate_module(
             lambda: E3SchNetInteraction(
                 n_atom_basis=self.n_atom_basis,
