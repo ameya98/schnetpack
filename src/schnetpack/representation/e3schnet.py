@@ -163,7 +163,6 @@ class E3SchNetInteraction(nn.Module):
         # Compute filter.
         Wij = self.filter_network(f_ij)
         Wij = Wij * rcut_ij[:, None]
-        print("Wij", Wij.shape)
 
         # Continuous-filter convolution.
         x_j = x[idx_j]
@@ -270,7 +269,6 @@ class E3SchNet(nn.Module):
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
             v = interaction(x, idx_i, idx_j, f_ij, rcut_ij, r_ij)
-            print("v.shape", v.shape)
             x = x + v
 
         # Extract only the scalars.
