@@ -188,20 +188,24 @@ class E3SchNetInteraction(nn.Module):
         Returns:
             atom features after interaction
         """
+        print("x before in2f", x.shape)
         # Embed the inputs.
         x = self.in2f(x)
 
+        print("x after in2f", x.shape)
         # Compute the spherical harmonics of relative positions.
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
         Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalize=True)
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
 
+        print("Yr_ij", Yr_ij.shape)
         # Previously x.shape == (num_edges, n_filters * x_irreps.dim)
         # We want x.shape == (num_edges, n_filters, x_irreps.dim)
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
         # Apply e3nn.o3.FullTensorProduct to get new x_ij of shape (num_edges, n_filters, new_x_irreps).
         x = mul_to_axis(x, self.irreps_after_in2f, self.n_filters)
+        print("x after mul_to_axis", x.shape)
         x = self.tensor_product_x_Yr(x, Yr_ij)
 
         # Again, reshape x back to (num_edges, n_filters * x_irreps.dim).
