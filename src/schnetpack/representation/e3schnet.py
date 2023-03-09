@@ -51,7 +51,7 @@ def mul_to_axis(
 
     num_atoms = input.shape[0]
     output_irreps = irreps_mul_to_axis(input_irreps, num_channels)
-    output = torch.zeros((num_atoms, num_channels, output_irreps.dim))
+    output = torch.zeros_like(input).reshape((num_atoms, num_channels, output_irreps.dim))
     for channel in range(num_channels):
         start = 0
         for irrep_slice in get_slices_for_channel(channel):
@@ -82,7 +82,7 @@ def axis_to_mul(
 
     num_atoms, num_channels = input.shape[0], input.shape[1]
     output_irreps = irreps_axis_to_mul(input_irreps, num_channels)
-    output = torch.zeros((num_atoms, output_irreps.dim))
+    output = torch.zeros_like(input).reshape((num_atoms, output_irreps.dim))
     for channel in range(num_channels):
         start = 0
         for irrep_slice in get_slices_for_channel(channel):
