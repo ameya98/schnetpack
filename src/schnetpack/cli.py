@@ -107,7 +107,8 @@ def train(config: DictConfig):
     # Init model
     log.info(f"Instantiating model <{config.model._target_}>")
     print(config.model)
-    model = hydra.utils.instantiate(e3nn.util.jit.compile(config.model))
+    model = hydra.utils.instantiate(config.model)
+    model = e3nn.util.jit.compile(model)
     #model = hydra.utils.instantiate(config.model)
 
     # Init LightningModule
