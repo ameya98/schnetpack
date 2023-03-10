@@ -198,7 +198,6 @@ class E3SchNet(nn.Module):
         self.latent_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
         ))
-        #print("latent_irreps", self.latent_irreps)
 
         # Irreps of the spherical harmonics.
         self.Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
@@ -241,7 +240,7 @@ class E3SchNet(nn.Module):
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
-        Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalize=True)
+        Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalization="component", normalize=True)
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
 
         # Compute interaction block to update atomic embeddings
