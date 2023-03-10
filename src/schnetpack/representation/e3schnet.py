@@ -12,6 +12,7 @@ import schnetpack.nn as snn
 __all__ = ["E3SchNet", "E3SchNetInteraction"]
 
 
+@e3nn.util.jit.compile
 class E3SchNetInteraction(nn.Module):
     r"""E(3)-equivariant SchNet interaction block for modeling interactions of atomistic systems."""
 
@@ -140,6 +141,7 @@ class E3SchNetInteraction(nn.Module):
         return x
 
 
+@e3nn.util.jit.compile
 class E3SchNet(nn.Module):
     """E(3)-equivariant SchNet architecture for learning representations of atomistic systems
 
