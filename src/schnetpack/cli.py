@@ -4,7 +4,7 @@ import uuid
 import tempfile
 import socket
 from typing import List
-
+import e3nn
 import torch
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -106,7 +106,9 @@ def train(config: DictConfig):
 
     # Init model
     log.info(f"Instantiating model <{config.model._target_}>")
-    model = hydra.utils.instantiate(config.model)
+    print(config.model)
+    model = hydra.utils.instantiate(e3nn.util.jit.compile(config.model))
+    #model = hydra.utils.instantiate(config.model)
 
     # Init LightningModule
     log.info(f"Instantiating task <{config.task._target_}>")

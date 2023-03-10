@@ -140,7 +140,6 @@ class E3SchNetInteraction(nn.Module):
         return x
 
 
-@e3nn.util.jit.compile
 class E3SchNet(nn.Module):
     """E(3)-equivariant SchNet architecture for learning representations of atomistic systems
 
