@@ -111,8 +111,7 @@ class ModelCheckpoint(BaseModelCheckpoint):
             if self.trainer.strategy.local_rank == 0:
                 # remove references to trainer and data loaders to avoid pickle error in ddp
                 # TODO(ameyad): uncomment once we can save e3nn models.
-                # self.task.save_model(self.model_path, do_postprocessing=True)
-                pass
+                self.task.save_model(self.model_path, do_postprocessing=True)
 
 
 class ExponentialMovingAverage(Callback):
