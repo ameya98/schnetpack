@@ -30,69 +30,6 @@ def irreps_axis_to_mul(
     )
 
 
-def mul_to_axis(
-    input: torch.Tensor, input_irreps: e3nn.o3.Irreps, num_channels: int
-) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
-    """Reshapes a tensor of shape (num_atoms, num_channels * irreps.dim) to (num_atoms, num_channels, irreps.dim)."""
-
-    assert (
-        input.shape[-1] == input_irreps.dim
-    ), f"Expected {input_irreps.dim} features, got {input.shape[1]}"
-    assert all(mul % num_channels == 0 for mul, _ in input_irreps)
-
-    def get_slices_for_channel(channel):
-        """Returns a slice for each irrep in input_irreps for the given channel."""
-        for irrep_slice in input_irreps.slices():
-            irrep_dim = (irrep_slice.stop - irrep_slice.start) // num_channels
-            yield slice(
-                irrep_slice.start + channel * irrep_dim,
-                irrep_slice.start + (channel + 1) * irrep_dim,
-            )
-
-    num_atoms = input.shape[0]
-    output_irreps = irreps_mul_to_axis(input_irreps, num_channels)
-    output = torch.zeros_like(input).reshape((num_atoms, num_channels, output_irreps.dim))
-    for channel in range(num_channels):
-        start = 0
-        for irrep_slice in get_slices_for_channel(channel):
-            output[
-                :, channel, start : start + irrep_slice.stop - irrep_slice.start
-            ] = input[:, irrep_slice]
-            start += irrep_slice.stop - irrep_slice.start
-    return output
-
-
-def axis_to_mul(
-    input: torch.Tensor, input_irreps: e3nn.o3.Irreps
-) -> Tuple[torch.Tensor, e3nn.o3.Irreps]:
-    """Reshapes a tensor of shape (num_atoms, num_channels, irreps.dim) to (num_atoms, num_channels * irreps.dim)."""
-
-    assert (
-        input.shape[-1] == input_irreps.dim
-    ), f"Expected {input_irreps.dim} features, got {input.shape[1]}"
-
-    def get_slices_for_channel(channel):
-        """Returns a slice for each irrep in input_irreps for the given channel."""
-        for irrep_slice in output_irreps.slices():
-            irrep_dim = (irrep_slice.stop - irrep_slice.start) // num_channels
-            yield slice(
-                irrep_slice.start + channel * irrep_dim,
-                irrep_slice.start + (channel + 1) * irrep_dim,
-            )
-
-    num_atoms, num_channels = input.shape[0], input.shape[1]
-    output_irreps = irreps_axis_to_mul(input_irreps, num_channels)
-    output = torch.zeros_like(input).reshape((num_atoms, output_irreps.dim))
-    for channel in range(num_channels):
-        start = 0
-        for irrep_slice in get_slices_for_channel(channel):
-            output[:, irrep_slice] = input[
-                :, channel, start : start + irrep_slice.stop - irrep_slice.start
-            ]
-            start += irrep_slice.stop - irrep_slice.start
-    return output
-
-
 class E3SchNetInteraction(nn.Module):
     r"""E(3)-equivariant SchNet interaction block for modeling interactions of atomistic systems."""
 
@@ -116,21 +53,19 @@ class E3SchNetInteraction(nn.Module):
         self.n_filters = n_filters
         self.max_ell = max_ell
 
-        input_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(
+        input_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
-        )
-        input_irreps = input_irreps.sort().irreps.simplify()
+        ))
 
-        irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
+        self.irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
         )
-        self.irreps_after_in2f = irreps_after_in2f.sort().irreps.simplify()
         self.in2f = e3nn.o3.Linear(
             irreps_in=input_irreps, irreps_out=self.irreps_after_in2f
         )
 
-        self.irreps_after_mul_to_axis = irreps_mul_to_axis(
-            self.irreps_after_in2f, self.n_filters
+        self.irreps_after_mul_to_axis = e3nn.o3.Irreps.spherical_harmonics(
+            self.max_ell
         )
 
         self.Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
@@ -194,7 +129,7 @@ class E3SchNetInteraction(nn.Module):
         # Previously x_j.shape == (num_edges, n_filters * x_irreps.dim)
         # We want x_j.shape == (num_edges, n_filters, x_irreps.dim)
         x_j = x[idx_j]
-        x_j = mul_to_axis(x_j, self.irreps_after_in2f, self.n_filters)
+        x_j = x_j.reshape((x_j.shape[0], self.n_filters, -1))
 
         # Compute the spherical harmonics of relative positions.
         # r_ij: (n_edges, 3)
@@ -207,7 +142,7 @@ class E3SchNetInteraction(nn.Module):
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
 
         # Reshape x_j back to (num_edges, n_filters * x_irreps.dim).
-        x_j = axis_to_mul(x_j, self.irreps_after_tensor_product_x_Yr)
+        x_j = x_j.reshape((x_j.shape[0], -1))
 
         # Compute filter.
         Wij = self.filter_network(f_ij)
@@ -278,11 +213,10 @@ class E3SchNet(nn.Module):
         self.cutoff = cutoff_fn.cutoff
         self.max_ell = max_ell
 
-        latent_irreps = self.n_atom_basis * e3nn.o3.Irreps.spherical_harmonics(
+        # Create n_atom_basis copies of each irreps.
+        self.latent_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
-        )
-        latent_irreps = latent_irreps.sort().irreps.simplify()
-        self.latent_irreps = latent_irreps
+        ))
 
         # layers
         self.embedding = nn.Embedding(max_z, self.n_atom_basis, padding_idx=0)
@@ -317,8 +251,6 @@ class E3SchNet(nn.Module):
         f_ij = self.radial_basis(d_ij)
         rcut_ij = self.cutoff_fn(d_ij)
         r_ij = r_ij * rcut_ij[:, None]
-
-        assert r_ij.shape == (r_ij.shape[0], 3), r_ij.shape
 
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
