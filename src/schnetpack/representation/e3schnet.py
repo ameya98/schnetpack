@@ -106,27 +106,22 @@ class E3SchNetInteraction(nn.Module):
         """
         # Embed the inputs.
         x = self.in2f(x)
-        print("x.shape", x.shape)
         # Previously x_j.shape == (num_edges, n_filters * x_irreps.dim)
         # We want x_j.shape == (num_edges, n_filters, x_irreps.dim)
         x_j = x[idx_j]
         x_j = x_j.reshape((x_j.shape[0], self.n_filters, -1))
-        print("x_j.shape", x_j.shape)
 
         # Apply e3nn.o3.FullTensorProduct to get new x_j of shape (num_edges, n_filters, new_x_irreps).
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
-        print("x_j.shape", x_j.shape)
 
         # Reshape x_j back to (num_edges, n_filters * x_irreps.dim).
         x_j = x_j.reshape((x_j.shape[0], -1))
-        print("x_j.shape", x_j.shape)
 
         # Compute filter.
         Wij = self.filter_network(f_ij)
         Wij = Wij * rcut_ij[:, None]
 
         # Continuous-filter convolution.
-        print(self.irreps_after_axis_to_mul.sort().irreps.simplify(), self.irreps_after_axis_to_mul.dim, x_j.shape)
         x_ij = self.continuous_filter_convolution(x_j, Wij)
         x = scatter_add(x_ij, idx_i, dim_size=x.shape[0])
 
