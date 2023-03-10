@@ -12,24 +12,6 @@ import schnetpack.nn as snn
 __all__ = ["E3SchNet", "E3SchNetInteraction"]
 
 
-def irreps_mul_to_axis(
-    input_irreps: e3nn.o3.Irreps, num_channels: int
-) -> e3nn.o3.Irreps:
-    """Returns the corresponding irreps for the output of mul_to_axis()."""
-    return e3nn.o3.Irreps(
-        [(mul // num_channels, (ir.l, ir.p)) for mul, ir in input_irreps]
-    )
-
-
-def irreps_axis_to_mul(
-    input_irreps: e3nn.o3.Irreps, num_channels: int
-) -> e3nn.o3.Irreps:
-    """Returns the corresponding irreps for the output of axis_to_mul()."""
-    return e3nn.o3.Irreps(
-        [(mul * num_channels, (ir.l, ir.p)) for mul, ir in input_irreps]
-    )
-
-
 class E3SchNetInteraction(nn.Module):
     r"""E(3)-equivariant SchNet interaction block for modeling interactions of atomistic systems."""
 
@@ -74,8 +56,8 @@ class E3SchNetInteraction(nn.Module):
         )
         self.irreps_after_tensor_product_x_Yr = self.tensor_product_x_Yr.irreps_out
 
-        self.irreps_after_axis_to_mul = irreps_axis_to_mul(
-            self.irreps_after_tensor_product_x_Yr, self.n_filters
+        self.irreps_after_axis_to_mul = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
+            self.max_ell
         )
 
         self.W_irreps = e3nn.o3.Irreps(f"{self.irreps_after_axis_to_mul.num_irreps}x0e")
@@ -109,7 +91,7 @@ class E3SchNetInteraction(nn.Module):
         idx_j: torch.Tensor,
         f_ij: torch.Tensor,
         rcut_ij: torch.Tensor,
-        r_ij: torch.Tensor,
+        Yr_ij: torch.Tensor,
     ):
         """Compute interaction output.
 
@@ -120,6 +102,7 @@ class E3SchNetInteraction(nn.Module):
             f_ij: d_ij passed through the embedding function
             rcut_ij: d_ij passed through the cutoff function
             r_ij: relative position of neighbor j to atom i
+            Yr_ij: spherical harmonics of r_ij
         Returns:
             atom features after interaction
         """
@@ -130,13 +113,6 @@ class E3SchNetInteraction(nn.Module):
         # We want x_j.shape == (num_edges, n_filters, x_irreps.dim)
         x_j = x[idx_j]
         x_j = x_j.reshape((x_j.shape[0], self.n_filters, -1))
-
-        # Compute the spherical harmonics of relative positions.
-        # r_ij: (n_edges, 3)
-        # Yr_ij: (n_edges, (max_ell + 1) ** 2)
-        Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalize=True)
-        # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
-        Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
 
         # Apply e3nn.o3.FullTensorProduct to get new x_j of shape (num_edges, n_filters, new_x_irreps).
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
@@ -218,7 +194,10 @@ class E3SchNet(nn.Module):
             self.max_ell
         ))
 
-        # layers
+        # Irreps of the spherical harmonics.
+        self.Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
+
+        # Layers
         self.embedding = nn.Embedding(max_z, self.n_atom_basis, padding_idx=0)
         self.post_embedding = e3nn.o3.Linear(
             irreps_in=f"{self.n_atom_basis}x0e", irreps_out=self.latent_irreps
@@ -252,9 +231,16 @@ class E3SchNet(nn.Module):
         rcut_ij = self.cutoff_fn(d_ij)
         r_ij = r_ij * rcut_ij[:, None]
 
+        # Compute the spherical harmonics of relative positions.
+        # r_ij: (n_edges, 3)
+        # Yr_ij: (n_edges, (max_ell + 1) ** 2)
+        # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
+        Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalize=True)
+        Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
+
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
-            v = interaction(x, idx_i, idx_j, f_ij, rcut_ij, r_ij)
+            v = interaction(x, idx_i, idx_j, f_ij, rcut_ij, Yr_ij)
             x = x + v
 
         # Extract only the scalars.
