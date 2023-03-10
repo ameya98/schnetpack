@@ -168,12 +168,12 @@ def train(config: DictConfig):
     best_path = trainer.checkpoint_callback.best_model_path
     log.info(f"Best checkpoint path:\n{best_path}")
 
-    log.info(f"Store best model")
-    best_task = type(task).load_from_checkpoint(best_path)
-    torch.save(best_task, config.globals.model_path + ".task")
+    # log.info(f"Store best model")
+    # best_task = type(task).load_from_checkpoint(best_path)
+    # torch.save(best_task, config.globals.model_path + ".task")
 
-    best_task.save_model(config.globals.model_path, do_postprocessing=True)
-    log.info(f"Best model stored at {os.path.abspath(config.globals.model_path)}")
+    # best_task.save_model(config.globals.model_path, do_postprocessing=True)
+    # log.info(f"Best model stored at {os.path.abspath(config.globals.model_path)}")
 
 
 @hydra.main(config_path="configs", config_name="predict", version_base="1.2")
