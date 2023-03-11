@@ -251,5 +251,5 @@ class E3SchNet(nn.Module):
             x = x + v
 
         # Extract only the scalars.
-        inputs["scalar_representation"] = x
+        inputs["scalar_representation"] = x[:, :self.n_atom_basis]
         return inputs
