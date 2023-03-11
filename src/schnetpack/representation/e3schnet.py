@@ -243,7 +243,7 @@ class E3SchNet(nn.Module):
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
         # Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalization="component", normalize=True)
         # Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
-        Yr_ij = torch.ones((r_ij.shape[0], 1, 1))
+        Yr_ij = torch.ones((r_ij.shape[0], 1, 1), device=r_ij.device)
 
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
