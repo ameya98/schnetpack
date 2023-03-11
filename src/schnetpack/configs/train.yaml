@@ -5,7 +5,6 @@ defaults:
   - globals: default_globals
   - trainer: default_trainer
   - callbacks:
-      - checkpoint
       - earlystopping
       - lrmonitor
       - ema
