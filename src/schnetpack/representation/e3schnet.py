@@ -206,7 +206,7 @@ class E3SchNet(nn.Module):
         self.post_embedding = e3nn.o3.Linear(
             irreps_in=f"{self.n_atom_basis}x0e", irreps_out=latent_irreps
         )
-        self.spherical_harmonics = e3nn.o3.SphericalHarmonics(self.max_ell, normalization="component", normalize=True)
+        self.spherical_harmonics = e3nn.o3.SphericalHarmonics(spherical_harmonics_irreps, normalization="component", normalize=True)
         self.interactions = snn.replicate_module(
             lambda: E3SchNetInteraction(
                 n_atom_basis=self.n_atom_basis,
@@ -239,7 +239,7 @@ class E3SchNet(nn.Module):
         # Compute the spherical harmonics of relative positions.
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
-        # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
+        # Reshape Yr_ij to (num_edges, 1, (max_ell + 1) ** 2).
         Yr_ij = self.spherical_harmonics(r_ij)
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
 
