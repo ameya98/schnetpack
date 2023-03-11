@@ -108,6 +108,7 @@ def train(config: DictConfig):
     log.info(f"Instantiating model <{config.model._target_}>")
     print(config.model)
     model = hydra.utils.instantiate(config.model)
+    print("model", model)
     # model = e3nn.util.jit.compile(model)
     #model = hydra.utils.instantiate(config.model)
 
