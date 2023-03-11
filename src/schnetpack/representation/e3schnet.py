@@ -35,52 +35,52 @@ class E3SchNetInteraction(nn.Module):
         self.n_filters = n_filters
         self.max_ell = max_ell
 
-        self.input_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
+        input_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
         ))
 
-        self.irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
+        irreps_after_in2f = self.n_filters * e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
         )
         self.in2f = e3nn.o3.Linear(
-            irreps_in=self.input_irreps, irreps_out=self.irreps_after_in2f
+            irreps_in=input_irreps, irreps_out=irreps_after_in2f
         )
 
-        self.irreps_after_mul_to_axis = e3nn.o3.Irreps.spherical_harmonics(
+        irreps_after_mul_to_axis = e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
         )
 
-        self.Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
+        Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
         self.tensor_product_x_Yr = e3nn.o3.FullTensorProduct(
-            self.irreps_after_mul_to_axis, self.Yr_irreps
+            irreps_after_mul_to_axis, Yr_irreps
         )
-        self.irreps_after_tensor_product_x_Yr = self.tensor_product_x_Yr.irreps_out
+        irreps_after_tensor_product_x_Yr = self.tensor_product_x_Yr.irreps_out
 
-        self.irreps_after_axis_to_mul = self.n_filters * self.irreps_after_tensor_product_x_Yr
+        irreps_after_axis_to_mul = self.n_filters * irreps_after_tensor_product_x_Yr
 
-        self.W_irreps = e3nn.o3.Irreps(f"{self.irreps_after_axis_to_mul.num_irreps}x0e")
+        self.W_irreps = e3nn.o3.Irreps(f"{irreps_after_axis_to_mul.num_irreps}x0e")
         self.filter_network = nn.Sequential(
             Dense(n_rbf, n_filters, activation=activation),
             Dense(n_filters, self.W_irreps.dim),
         )
 
         self.continuous_filter_convolution = e3nn.o3.ElementwiseTensorProduct(
-            self.irreps_after_axis_to_mul, self.W_irreps
+            irreps_after_axis_to_mul, self.W_irreps
         )
-        self.irreps_after_continuous_filter_convolution = (
+        irreps_after_continuous_filter_convolution = (
             self.continuous_filter_convolution.irreps_out
         )
 
-        self.output_irreps = self.input_irreps
+        output_irreps = input_irreps
         self.f2out_1 = e3nn.o3.Linear(
-            irreps_in=self.irreps_after_continuous_filter_convolution,
-            irreps_out=self.output_irreps,
+            irreps_in=irreps_after_continuous_filter_convolution,
+            irreps_out=output_irreps,
         )
         self.f2out_act = e3nn.nn.Activation(
-            irreps_in=self.output_irreps,
-            acts=[activation if ir.l == 0 else None for _, ir in self.output_irreps],
+            irreps_in=output_irreps,
+            acts=[activation if ir.l == 0 else None for _, ir in output_irreps],
         )
-        self.f2out_2 = e3nn.o3.Linear(irreps_in=self.output_irreps, irreps_out=self.output_irreps)
+        self.f2out_2 = e3nn.o3.Linear(irreps_in=output_irreps, irreps_out=output_irreps)
 
     def forward(
         self,
@@ -107,23 +107,23 @@ class E3SchNetInteraction(nn.Module):
         # print("x", x, self.input_irreps)
         # Embed the inputs.
         x = self.in2f(x)
-        #print("x, irreps_after_in2f", x, self.irreps_after_in2f)
+        #print("x, irreps_after_in2f", x, irreps_after_in2f)
 
         # Previously x_j.shape == (num_edges, n_filters * x_irreps.dim)
         # We want x_j.shape == (num_edges, n_filters, x_irreps.dim)
         x_j = x[idx_j]
-        #print("x_j, irreps_after_in2f", x_j[:1], self.irreps_after_in2f)
+        #print("x_j, irreps_after_in2f", x_j[:1], irreps_after_in2f)
 
         x_j = x_j.reshape((x_j.shape[0], self.n_filters, -1))
-        #print("x_j, irreps_after_mul_to_axis", x_j[:1], self.irreps_after_mul_to_axis)
+        #print("x_j, irreps_after_mul_to_axis", x_j[:1], irreps_after_mul_to_axis)
 
         # Apply e3nn.o3.FullTensorProduct to get new x_j of shape (num_edges, n_filters, new_x_irreps).
         x_j = self.tensor_product_x_Yr(x_j, Yr_ij)
-        #print("x_j, irreps_after_tensor_product_x_Yr", x_j[:1], self.irreps_after_tensor_product_x_Yr)
+        #print("x_j, irreps_after_tensor_product_x_Yr", x_j[:1], irreps_after_tensor_product_x_Yr)
 
         # Reshape x_j back to (num_edges, n_filters * x_irreps.dim).
         x_j = x_j.reshape((x_j.shape[0], -1))
-        #print("x_j, irreps_after_axis_to_mul", x_j[:1], self.irreps_after_axis_to_mul)
+        #print("x_j, irreps_after_axis_to_mul", x_j[:1], irreps_after_axis_to_mul)
 
         # Compute filter.
         Wij = self.filter_network(f_ij)
