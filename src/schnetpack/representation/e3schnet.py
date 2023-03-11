@@ -196,15 +196,17 @@ class E3SchNet(nn.Module):
         self.max_ell = max_ell
 
         # Create n_atom_basis copies of each irreps.
-        self.latent_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in e3nn.o3.Irreps.spherical_harmonics(
+        spherical_harmonics_irreps = e3nn.o3.Irreps.spherical_harmonics(
             self.max_ell
-        ))
+        )
+        latent_irreps = e3nn.o3.Irreps((self.n_atom_basis, (ir.l, ir.p)) for _, ir in spherical_harmonics_irreps)
 
         # Layers
         self.embedding = nn.Embedding(max_z, self.n_atom_basis, padding_idx=0)
         self.post_embedding = e3nn.o3.Linear(
-            irreps_in=f"{self.n_atom_basis}x0e", irreps_out=self.latent_irreps
+            irreps_in=f"{self.n_atom_basis}x0e", irreps_out=latent_irreps
         )
+        self.spherical_harmonics = e3nn.o3.SphericalHarmonics(self.max_ell, normalization="component", normalize=True)
         self.interactions = snn.replicate_module(
             lambda: E3SchNetInteraction(
                 n_atom_basis=self.n_atom_basis,
@@ -238,8 +240,7 @@ class E3SchNet(nn.Module):
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
-        Yr_irreps = e3nn.o3.Irreps.spherical_harmonics(self.max_ell)
-        Yr_ij = e3nn.o3.spherical_harmonics(Yr_irreps, r_ij, normalization="component", normalize=True)
+        Yr_ij = self.spherical_harmonics(r_ij)
         Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
 
         # Compute interaction block to update atomic embeddings
