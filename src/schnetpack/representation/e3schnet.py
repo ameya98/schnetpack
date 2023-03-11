@@ -11,7 +11,7 @@ import schnetpack.nn as snn
 
 __all__ = ["E3SchNet", "E3SchNetInteraction"]
 
-
+@e3nn.util.jit.compile_mode('script')
 class E3SchNetInteraction(nn.Module):
     r"""E(3)-equivariant SchNet interaction block for modeling interactions of atomistic systems."""
 
@@ -140,6 +140,7 @@ class E3SchNetInteraction(nn.Module):
         return x
 
 
+@e3nn.util.jit.compile_mode('script')
 class E3SchNet(nn.Module):
     """E(3)-equivariant SchNet architecture for learning representations of atomistic systems
 
@@ -240,8 +241,9 @@ class E3SchNet(nn.Module):
         # r_ij: (n_edges, 3)
         # Yr_ij: (n_edges, (max_ell + 1) ** 2)
         # Reshape Yr_ij to (num_edges, 1, x_irreps.dim).
-        Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalization="component", normalize=True)
-        Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
+        # Yr_ij = e3nn.o3.spherical_harmonics(self.Yr_irreps, r_ij, normalization="component", normalize=True)
+        # Yr_ij = Yr_ij.reshape((Yr_ij.shape[0], 1, Yr_ij.shape[1]))
+        Yr_ij = torch.ones((r_ij.shape[0], 1, 1))
 
         # Compute interaction block to update atomic embeddings
         for interaction in self.interactions:
@@ -249,5 +251,5 @@ class E3SchNet(nn.Module):
             x = x + v
 
         # Extract only the scalars.
-        inputs["scalar_representation"] = x[:, self.latent_irreps.slices()[0]]
+        inputs["scalar_representation"] = x
         return inputs
